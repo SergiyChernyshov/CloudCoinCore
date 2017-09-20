@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Net;
+using System.Net.Http;
+using System.Threading.Tasks;
 using System.Text;
 using System.IO;
 
@@ -32,7 +34,7 @@ namespace Founders
         * Method ECHO
         * @param raidaID The number of the RAIDA server 0-24
         */
-        public Response echo(int raidaID)
+        public async Task<Response> echo(int raidaID)
         {
             Response echoResponse = new Response();
             echoResponse.fullRequest = this.fullUrl + "echo?b=t";
@@ -40,7 +42,7 @@ namespace Founders
             RAIDA_Status.failsEcho[raidaID] = true;
             try
             {
-                echoResponse.fullResponse = getHtml(echoResponse.fullRequest);
+                echoResponse.fullResponse = await getHtml(echoResponse.fullRequest);
                 if ( echoResponse.fullResponse.Contains("ready") )
                 {
                     echoResponse.success = true;
@@ -80,14 +82,14 @@ namespace Founders
          * @param d int that is the Denomination of the Coin
          * @return Response object. 
          */
-        public Response detect(int nn, int sn, String an, String pan, int d)
+        public async Task<Response> detect(int nn, int sn, String an, String pan, int d)
         {
             Response detectResponse = new Response();
             detectResponse.fullRequest = this.fullUrl + "detect?nn=" + nn + "&sn=" + sn + "&an=" + an + "&pan=" + pan + "&denomination=" + d + "&b=t";
             DateTime before = DateTime.Now;
             try
             {
-                detectResponse.fullResponse = getHtml(detectResponse.fullRequest);
+                detectResponse.fullResponse = await getHtml(detectResponse.fullRequest);
                 DateTime after = DateTime.Now; TimeSpan ts = after.Subtract(before);
                 detectResponse.milliseconds = Convert.ToInt32(ts.Milliseconds);
 
@@ -131,7 +133,7 @@ namespace Founders
         * @param d int that is the Denomination of the Coin
         * @return Response object. 
         */
-        public Response get_ticket(int nn, int sn, String an, int d)
+        public async Task<Response> get_ticket(int nn, int sn, String an, int d)
         {
             Response get_ticketResponse = new Response();
             get_ticketResponse.fullRequest = fullUrl + "get_ticket?nn=" + nn + "&sn=" + sn + "&an=" + an + "&pan=" + an + "&denomination=" + d;
@@ -139,7 +141,7 @@ namespace Founders
 
             try
             {
-                get_ticketResponse.fullResponse = getHtml(get_ticketResponse.fullRequest);
+                get_ticketResponse.fullResponse = await getHtml(get_ticketResponse.fullRequest);
                 DateTime after = DateTime.Now; TimeSpan ts = after.Subtract(before);
                 get_ticketResponse.milliseconds = Convert.ToInt32(ts.Milliseconds);
 
@@ -187,7 +189,7 @@ namespace Founders
          * @param pan string proposed authenticity number (to replace the wrong AN the RAIDA has)
          * @return string status sent back from the server: sucess, fail or error. 
          */
-        public Response fix(int[] triad, String m1, String m2, String m3, String pan)
+        public async Task<Response> fix(int[] triad, String m1, String m2, String m3, String pan)
         {
             Response fixResponse = new Response();
             DateTime before = DateTime.Now;
@@ -197,7 +199,7 @@ namespace Founders
 
             try
             {
-                fixResponse.fullResponse = getHtml(fixResponse.fullRequest);
+                fixResponse.fullResponse = await getHtml(fixResponse.fullRequest);
                 if (fixResponse.fullResponse.Contains("success"))
                 {
                     fixResponse.outcome = "success";
@@ -227,49 +229,37 @@ namespace Founders
          * @param url_in The URL to be downloaded
          * @return The text that was downloaded
          */
-        private String getHtml(String urlAddress)
+        private async Task<String> getHtml(String urlAddress)
         {
             //Console.Out.WriteLine(urlAddress);
-            
+
             // Console.Out.Write(".");
             string data = "";
-            HttpWebRequest request = (HttpWebRequest)WebRequest.Create(urlAddress);
-            request.ContinueTimeout = readTimeout;
-            request.UserAgent = "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.11 (KHTML, like Gecko) Chrome/23.0.1271.95 Safari/537.11";
+            //HttpWebRequest request = (HttpWebRequest)WebRequest.Create(urlAddress);
+            //request.ContinueTimeout = readTimeout;
+            //request.UserAgent = "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.11 (KHTML, like Gecko) Chrome/23.0.1271.95 Safari/537.11";
 
             try
             {
-                HttpWebResponse response = (HttpWebResponse)request.GetResponse();
-                if (response.StatusCode == HttpStatusCode.OK)
+                using (var cli = new HttpClient())
                 {
-                    Stream receiveStream = response.GetResponseStream();
-                    StreamReader readStream = null;
+                    HttpResponseMessage response = await cli.GetAsync(urlAddress);
 
-                    if (response.CharacterSet == null)
-                    {
-                        readStream = new StreamReader(receiveStream);
-                    }
-                    else
-                    {
-                        readStream = new StreamReader(receiveStream, Encoding.GetEncoding(response.CharacterSet));
-                    }
-                    data = readStream.ReadToEnd();
-                   // System.Console.Out.WriteLine(data);
-                   
-                    response.Close();
-                    readStream.Close();
+                    //Console.Write(".");
+                    if (response.IsSuccessStatusCode)
+                        data = await response.Content.ReadAsStringAsync();
+                    // System.Console.Out.WriteLine(data);  
                 }
             }
             catch (Exception ex)
             {
                 // Console.Out.WriteLine(ex.Message);
-                
+
                 return ex.Message;
             }
             // Console.Out.WriteLine(data);
             return data;
         }//end get HTML
-
 
         /**
          * Method ordinalIndexOf used to parse cloudcoins. Finds the nth number of a character within a string
